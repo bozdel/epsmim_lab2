@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include <emminthin.h>
+#include <emmintrin.h>
 #include <immintrin.h>
 
 #define I(a, b) ( (a) * Ny + (b) )
@@ -77,6 +77,8 @@ double f(int n, double tou) {
 	double exp_arg = - ( tmp * tmp * rev_gammasq);
 	return exp(exp_arg) * sin(tmp) * 0.5;
 }
+
+
 
 void calc_step(modeling_plane *plane, double tou) {
 	double *prev = plane->prev;
@@ -221,10 +223,10 @@ int main(int argc, char *argv[]) {
 		if (i % 50 == 0) {
 			write_to_file(fname, plane.curr, Nx * Ny);
 		}
-		write_to_file(fname, plane.curr, Nx * Ny);
-		if (i == k) {
+		// write_to_file(fname, plane.curr, Nx * Ny);
+		/*if (i == k) {
 			print_csv(plane.curr, Nx, Ny);
-		}
+		}*/
 		// sprintf(fname, "next%d", i);
 		// write_to_file(fname, plane.next, Nx * Ny);
 		/*if (i % 10 == 0) {
