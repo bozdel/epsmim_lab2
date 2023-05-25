@@ -225,6 +225,8 @@ void calc_step(modeling_plane *plane, double tou) {
 	double *prev_mdl = NULL;
 	double *next_mdl = NULL;
 
+	// учесть карайнюю точку
+	//------------- векторизовать цикл (см. лекции)--------------
 	for (i = 1; i < Nx - 1; i++) {
 
 		CALC_LINE(i, curr, next);
@@ -301,7 +303,7 @@ int main(int argc, char *argv[]) {
 	for (int i = 1; i < iters; i+=1) {
 		calc_step(&plane, tou);
 
-		sprintf(fname, "data/acurr%d", i);
+		sprintf(fname, "data/veccurr%d", i);
 		if (i % 50 == 0) {
 			write_to_file(fname, plane.curr, Nx * Ny);
 		}

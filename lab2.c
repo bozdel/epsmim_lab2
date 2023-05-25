@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
 		calc_step(&plane, tou);
 		// sprintf(fname, "prev%d", i);
 		// write_to_file(fname, plane.prev, Nx * Ny);
-		sprintf(fname, "data/acurr%d", i);
+		sprintf(fname, "data/curr%d", i);
 		if (i % 50 == 0) {
 			write_to_file(fname, plane.curr, Nx * Ny);
 		}
