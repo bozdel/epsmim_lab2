@@ -12,11 +12,18 @@
 
 #define I(a, b) ( (a) * Ny + (b) )
 
+// only for processed_phase use
+#define HD(i, j) (I((i) * 2    , (j)    )) // horizontal down (i)
+#define HU(i, j) (I((i) * 2 - 2, (j)    )) // horizontal down (i - 1)
+#define VR(i, j) (I((i) * 2 - 1, (j)    )) // vertical right (j)
+#define VL(i, j) (I((i) * 2 - 1, (j) - 1)) // vertical left (j - 1)
+
 typedef struct {
 	double *prev;
 	double *curr;
 	double *next;
 	double *phase;
+	double *processed_phase;
 	int Nx;
 	int Ny;
 	int Sx;
@@ -40,11 +47,69 @@ int write_to_file(char *filename, double *arr, int size) {
 	return 0;
 }
 
+enum position {
+	HDP,
+	HUP,
+	VRP,
+	VLP
+};
+
+void process_phase(modeling_plane *plane) {
+	int Nx = plane->Nx;
+	int Ny = plane->Ny;
+	double *phase = plane->phase;
+	double *processed_phase = plane->processed_phase;
+
+
+	double hd, hu, vl, vr;
+	for (int i = 1; i < Nx - 1; i++) {
+		for (int j = 1; j < Ny - 1; j++) {
+			hd = phase[I(i    , j    )] + phase[I(i    , j - 1)];
+			hu = phase[I(i - 1, j    )] + phase[I(i - 1, j - 1)];
+			vr = phase[I(i    , j    )] + phase[I(i - 1, j    )];
+			vl = phase[I(i    , j - 1)] + phase[I(i - 1, j - 1)];
+			processed_phase[HD(i, j)] = hd;
+			processed_phase[HU(i, j)] = hu;
+			processed_phase[VR(i, j)] = vr;
+			processed_phase[VL(i, j)] = vl;
+		}
+	}
+}
+
+void process_phase2(modeling_plane *plane) {
+	int Nx = plane->Nx;
+	int Ny = plane->Ny;
+	double *phase = plane->phase;
+	double *processed_phase = plane->processed_phase;
+
+
+	double hd, hu, vl, vr;
+	for (int i = 1; i < Nx - 1; i++) {
+		double *processed_phase_line = processed_phase + i * Ny * 4;
+		for (int j = 1; j < Ny - 1; j++) {
+			hd = phase[I(i    , j    )] + phase[I(i    , j - 1)];
+			hu = phase[I(i - 1, j    )] + phase[I(i - 1, j - 1)];
+			vr = phase[I(i    , j    )] + phase[I(i - 1, j    )];
+			vl = phase[I(i    , j - 1)] + phase[I(i - 1, j - 1)];
+			/*processed_phase[HD(i, j)] = hd;
+			processed_phase[HU(i, j)] = hu;
+			processed_phase[VR(i, j)] = vr;
+			processed_phase[VL(i, j)] = vl;*/
+			processed_phase_line[j * 4 + HDP] = hd;
+			processed_phase_line[j * 4 + HUP] = hu;
+			processed_phase_line[j * 4 + VLP] = vl;
+			processed_phase_line[j * 4 + VRP] = vr;
+		}
+	}
+}
+
 int init_modeling_plane(modeling_plane *plane, int Nx, int Ny, int Sx, int Sy) {
 	plane->Nx = Nx;
 	plane->Ny = Ny;
 	plane->Sx = Sx;
 	plane->Sy = Sy;
+	plane->processed_phase = (double*)malloc(Ny * (2 * Nx - 1) * sizeof(double));
+	// plane->processed_phase = (double*)malloc(Ny * Nx * 4 * sizeof(double));
 	plane->prev = (double*)malloc(Nx * Ny * sizeof(double));
 	plane->curr = (double*)malloc(Nx * Ny * sizeof(double));
 	// plane->next = (double*)malloc(Nx * Ny * sizeof(double));
@@ -68,6 +133,9 @@ int init_modeling_plane(modeling_plane *plane, int Nx, int Ny, int Sx, int Sy) {
 			plane->phase[I(i,j)] = 0.02;
 		}
 	}
+
+	process_phase(plane);
+
 	return 0;
 }
 
@@ -85,6 +153,7 @@ void calc_step(modeling_plane *plane, double tou) {
 	double *curr = plane->curr;
 	double *next = plane->next;
 	double *phase = plane->phase;
+	double *pphase = plane->processed_phase;
 	int Nx = plane->Nx;
 	int Ny = plane->Ny;
 	int Sx = plane->Sx;
@@ -116,6 +185,14 @@ void calc_step(modeling_plane *plane, double tou) {
 
 	double *prev_mdl = NULL;
 	double *next_mdl = NULL;
+
+	double hun, hdn, vln, vrn;
+
+	double *pphase_sumu = NULL;
+	double *pphase_sumd = NULL;
+	double *pphase_sumv = NULL;
+
+	double *pphase_line = NULL;
 	for (i = 1; i < Nx - 1; i++) {
 
 		curr_lwr = curr + (i - 1) * Ny;
@@ -128,12 +205,44 @@ void calc_step(modeling_plane *plane, double tou) {
 		next_mdl = next + (i) * Ny;
 		prev_mdl = prev + (i) * Ny;
 
+		pphase_sumu = pphase + (2 * i - 2) * Ny;
+		pphase_sumd = pphase + (2 * i) * Ny;
+		pphase_sumv = pphase + (2 * i - 1) * Ny;
+
+		// pphase_line = pphase + i * Ny * 4;
+
 		for (j = 1; j < Ny - 1; j++) {
 
-			elem_x = (curr_mdl[j+1] - curr_mdl[j]) * (phase_lwr[j] + phase_mdl[j]) +
+			
+			/*hun = phase_lwr[j - 1] + phase_lwr[j];
+			hdn = phase_mdl[j - 1] + phase_mdl[j];
+			vln = phase_lwr[j - 1] + phase_mdl[j - 1];
+			vrn = phase_lwr[j] + phase_mdl[j];*/
+
+			/*hun = pphase[HU(i, j)];
+			hdn = pphase[HD(i, j)];
+			vln = pphase[VL(i, j)];
+			vrn = pphase[VR(i, j)];*/
+
+			hun = pphase_sumu[j];
+			hdn = pphase_sumd[j];
+			vln = pphase_sumv[j - 1];
+			vrn = pphase_sumv[j];
+
+			/*hun = pphase_line[j * 4 + HUP];
+			hdn = pphase_line[j * 4 + HDP];
+			vln = pphase_line[j * 4 + VLP];
+			vrn = pphase_line[j * 4 + VRP];*/
+
+			elem_x = (curr_mdl[j+1] - curr_mdl[j]) * (vrn) +
+						(curr_mdl[j - 1] - curr_mdl[j]) * (vln);
+			elem_y = (curr_upr[j] - curr_mdl[j]) * (hdn) +
+						(curr_lwr[j] - curr_mdl[j]) * (hun);
+
+			/*elem_x = (curr_mdl[j+1] - curr_mdl[j]) * (phase_lwr[j] + phase_mdl[j]) +
 						(curr_mdl[j - 1] - curr_mdl[j]) * (phase_lwr[j - 1] + phase_mdl[j - 1]);
 			elem_y = (curr_upr[j] - curr_mdl[j]) * (phase_mdl[j - 1] + phase_mdl[j]) +
-						(curr_lwr[j] - curr_mdl[j]) * (phase_lwr[j - 1] + phase_lwr[j]);
+						(curr_lwr[j] - curr_mdl[j]) * (phase_lwr[j - 1] + phase_lwr[j]);*/
 
 			
 
